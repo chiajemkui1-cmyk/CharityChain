@@ -37,7 +37,7 @@ async function main() {
   await contract.deployed();
   console.log(`CharityManager deployed: ${contract.address}`);
 
-  const frontendConfigPath = path.join(root, 'contracts.js');
+  const frontendConfigPath = path.join(root, 'contracts_finalised.js');
   const frontendConfig = fs.readFileSync(frontendConfigPath, 'utf8');
   const updatedConfig = frontendConfig.replace(
     /const MANAGER_ADDRESS = '0x[a-fA-F0-9]{40}';/,
@@ -45,10 +45,10 @@ async function main() {
   );
 
   if (updatedConfig === frontendConfig) {
-    console.warn('Could not update MANAGER_ADDRESS in contracts.js automatically.');
+    console.warn('Could not update MANAGER_ADDRESS in contracts_finalised.js automatically.');
   } else {
     fs.writeFileSync(frontendConfigPath, updatedConfig);
-    console.log(`Updated contracts.js MANAGER_ADDRESS to ${contract.address}`);
+    console.log(`Updated contracts_finalised.js MANAGER_ADDRESS to ${contract.address}`);
   }
 }
 

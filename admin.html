@@ -253,7 +253,7 @@
 
 <div id="toast-root"></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
-<script src="contracts.js"></script>
+<script src="contracts_finalised.js"></script>
 <script>
 let account = null;
 let rejectTargetAddr = null;
@@ -332,7 +332,7 @@ async function loadApplications() {
     } catch(e) {
       container.innerHTML = `
         <div class="alert alert-danger">
-          ⚠️ Could not load applications. Make sure you have deployed the NEW CharityManager.sol (v2 with application system) and updated the address in contracts.js.<br/><br/>
+          ⚠️ Could not load applications. Make sure you have deployed the finalised CharityManager contract and updated the address in contracts_finalised.js.<br/><br/>
           Error: ${e.message}
         </div>`;
       return;

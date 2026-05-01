@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import "./CharityCampaign.sol";
+import "./CharityCampaign_finalised.sol";
 
 /**
  * @title CharityManager
@@ -258,7 +258,7 @@ contract CharityManager {
     function createCampaign(
         string memory _mission,
         uint256 _goal,
-        uint256 _durationSeconds,
+        uint256 _durationDays,
         string[] memory _mDescs,
         uint256[] memory _mAmounts,
         bool[] memory _mIsImpact
@@ -273,13 +273,13 @@ contract CharityManager {
         if (_mDescs.length == 0 || _mDescs.length > 20) revert InvalidMilestoneData();
 
         require(_goal > 0, "Goal must be positive");
-        require(_durationSeconds > 0, "Invalid duration");
+        require(_durationDays > 0, "Invalid duration");
 
         CharityCampaign newCampaign = new CharityCampaign(
             msg.sender,
             _mission,
             _goal,
-            _durationSeconds,
+            _durationDays,
             _mDescs,
             _mAmounts,
             _mIsImpact

@@ -1,5 +1,5 @@
 // ============================================================
-// contracts.js — ABI definitions & network config
+// contracts_finalised.js — ABI definitions & network config
 // v2 — includes NGO application system
 // ============================================================
 

@@ -1,10 +1,10 @@
 # CharityChain
 
-CharityChain is a Web3 charity platform built for Avalanche Fuji Testnet. It combines a plain HTML/CSS/JavaScript frontend with Solidity smart contracts for NGO verification, campaign creation, milestone voting, controlled fund release, and donor refunds.
+CharityChain is the finalised 7-day Web3 charity platform built for Avalanche Fuji Testnet. It combines a plain HTML/CSS/JavaScript frontend with Solidity smart contracts for NGO verification, campaign creation, milestone voting, controlled fund release, and donor refunds.
 
 ## Live Deployment
 
-- Production frontend: [https://charitychain-demo.vercel.app](https://charitychain-demo.vercel.app)
+- Production frontend: [https://charitychain-nine.vercel.app](https://charitychain-nine.vercel.app)
 - Verified Fuji `CharityManager`: `0x436cb64A239a29b315a9B16deaC9b3737f762dce`
 - Explorer: [https://testnet.snowtrace.io/address/0x436cb64A239a29b315a9B16deaC9b3737f762dce/contract/43113/code](https://testnet.snowtrace.io/address/0x436cb64A239a29b315a9B16deaC9b3737f762dce/contract/43113/code)
 
@@ -29,16 +29,15 @@ CharityChain is a Web3 charity platform built for Avalanche Fuji Testnet. It com
 
 ## Project Structure
 
-- `contracts/` — finalized production Solidity contracts
-- `scripts/compile.cjs` — local compile script
-- `scripts/deploy.cjs` — Fuji deployment script
-- `contracts.js` — frontend ABI and live manager address
+- `contracts/` — finalised production Solidity contracts
+- `scripts/compile_finalised.cjs` — local compile script
+- `scripts/deploy_finalised.cjs` — Fuji deployment script
+- `contracts_finalised.js` — frontend ABI and live manager address
 - `index.html`, `explore.html`, `ngo.html`, `apply.html`, `admin.html` — main frontend pages
-- `contract-variants/` — archived backups and alternative contract drafts kept for reference
 
 ## Smart Contracts
 
-### `CharityManager.sol`
+### `CharityManager_finalised.sol`
 
 Factory and registry contract that:
 
@@ -47,7 +46,7 @@ Factory and registry contract that:
 - creates new `CharityCampaign` contracts
 - supports admin pause/unpause and two-step admin transfer
 
-### `CharityCampaign.sol`
+### `CharityCampaign_finalised.sol`
 
 Per-campaign contract that:
 
@@ -108,6 +107,6 @@ Then open:
 
 ## Notes
 
-- This repository contains the finalized 7-day version of the platform.
+- This repository contains only the finalised 7-day version of the platform.
 - Each campaign is deployed as its own `CharityCampaign` contract through the verified `CharityManager`.
 - The frontend is configured for Avalanche Fuji Testnet.
