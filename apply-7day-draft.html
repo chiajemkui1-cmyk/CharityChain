@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Apply as NGO — CharityChain</title>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .apply-wrap {
+      max-width: 680px;
+      margin: 48px auto;
+      padding: 0 24px 64px;
+    }
+    .status-card {
+      border-radius: var(--radius-lg);
+      padding: 32px;
+      text-align: center;
+      margin-bottom: 28px;
+    }
+    .status-card .status-icon { font-size: 48px; margin-bottom: 14px; }
+    .status-card h2 { font-size: 22px; margin-bottom: 8px; }
+    .status-card p { font-size: 14px; color: var(--text2); line-height: 1.6; }
+    .status-pending  { background: var(--amber-bg);  border: 1px solid rgba(180,83,9,0.2); }
+    .status-approved { background: var(--green-bg);  border: 1px solid rgba(26,127,90,0.2); }
+    .status-rejected { background: var(--accent-bg); border: 1px solid rgba(232,64,64,0.2); }
+    .steps {
+      display: flex; gap: 0;
+      margin-bottom: 36px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .step {
+      flex: 1; padding: 16px 12px; text-align: center;
+      background: var(--surface);
+      border-right: 1px solid var(--border);
+      font-size: 13px;
+    }
+    .step:last-child { border-right: none; }
+    .step-num {
+      width: 28px; height: 28px; border-radius: 50%;
+      background: var(--surface2); border: 1px solid var(--border);
+      font-size: 12px; font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      margin: 0 auto 8px; color: var(--text2);
+    }
+    .step.active .step-num { background: var(--accent); border-color: var(--accent); color: #fff; }
+    .step.done .step-num  { background: var(--green);  border-color: var(--green);  color: #fff; }
+    .step-label { font-weight: 600; color: var(--text2); font-size: 12px; }
+    .step.active .step-label { color: var(--text); }
+    .step.done .step-label   { color: var(--green); }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-brand"><div class="topnav-brand-icon">⬡</div>CharityChain</div>
+  <div class="topnav-links">
+    <button class="topnav-link" onclick="location.href='index-7day-draft.html'">Home</button>
+    <button class="topnav-link" onclick="location.href='explore-7day-draft.html'">Explore</button>
+    <button class="topnav-link active">Apply as NGO</button>
+    <button class="topnav-link" onclick="location.href='ngo-7day-draft.html'">NGO Portal</button>
+    <button class="topnav-link" onclick="location.href='admin-7day-draft.html'">Admin</button>
+  </div>
+  <div class="topnav-right">
+    <div class="wallet-badge"><div class="wallet-dot" id="wallet-dot"></div><span id="wallet-label">Not connected</span></div>
+    <button class="btn btn-primary btn-sm" id="connect-btn" onclick="handleConnect()">Connect</button>
+  </div>
+</nav>
+
+<div class="apply-wrap">
+
+  <!-- Header -->
+  <div style="margin-bottom:32px">
+    <h1 class="page-title">Apply as NGO</h1>
+    <p class="page-sub">Submit your organisation details for admin review. Once approved, you can create milestone-based campaigns on CharityChain.</p>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps">
+    <div class="step active" id="step1">
+      <div class="step-num">1</div>
+      <div class="step-label">Connect Wallet</div>
+    </div>
+    <div class="step" id="step2">
+      <div class="step-num">2</div>
+      <div class="step-label">Submit Application</div>
+    </div>
+    <div class="step" id="step3">
+      <div class="step-num">3</div>
+      <div class="step-label">Admin Review</div>
+    </div>
+    <div class="step" id="step4">
+      <div class="step-num">4</div>
+      <div class="step-label">Verified ✓</div>
+    </div>
+  </div>
+
+  <!-- Content area — changes based on state -->
+  <div id="content-area">
+    <div class="empty-state">
+      <div class="empty-icon">🔗</div>
+      <div>Connect your wallet to check your application status.</div>
+      <button class="btn btn-primary" style="margin-top:16px" onclick="handleConnect()">Connect Wallet</button>
+    </div>
+  </div>
+
+</div>
+
+<div id="toast-root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<script src="contracts-7day-draft.js"></script>
+<script>
+let account = null;
+
+async function handleConnect() {
+  try {
+    account = await connectWallet();
+    document.getElementById('wallet-label').textContent = fmtAddr(account);
+    document.getElementById('wallet-dot').classList.add('connected');
+    document.getElementById('connect-btn').textContent = 'Connected';
+    document.getElementById('connect-btn').disabled = true;
+    setStep(2);
+    await checkStatus();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+function setStep(n) {
+  for (let i = 1; i <= 4; i++) {
+    const el = document.getElementById('step' + i);
+    el.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+    if (i < n) el.querySelector('.step-num').textContent = '✓';
+    else el.querySelector('.step-num').textContent = i;
+  }
+}
+
+async function checkStatus() {
+  const mgr = getManagerContract();
+
+  // Already verified?
+  const verified = await mgr.isVerifiedNGO(account);
+  if (verified) {
+    setStep(5);
+    const info = await mgr.getNGOInfo(account);
+    document.getElementById('content-area').innerHTML = `
+      <div class="status-card status-approved">
+        <div class="status-icon">✅</div>
+        <h2 style="color:var(--green)">You are a verified NGO</h2>
+        <p>Your organisation <strong>${info.name}</strong> is verified and active on CharityChain.</p>
+        <button class="btn btn-primary" style="margin-top:20px" onclick="location.href='ngo-7day-draft.html'">Go to NGO Portal →</button>
+      </div>`;
+    return;
+  }
+
+  // Check existing application
+  try {
+    const app = await mgr.getApplication(account);
+    const statusNum = Number(app.status);
+
+    if (statusNum === 1) {
+      // Pending
+      setStep(3);
+      document.getElementById('content-area').innerHTML = `
+        <div class="status-card status-pending">
+          <div class="status-icon">⏳</div>
+          <h2 style="color:var(--amber)">Application Under Review</h2>
+          <p>Your application for <strong>${app.name}</strong> was submitted on ${fmtDate(app.appliedAt)} and is awaiting admin review. You'll be notified once a decision is made.</p>
+        </div>
+        <div class="card">
+          <div class="card-header"><h3 style="font-size:15px">Your Submitted Details</h3></div>
+          <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+            <div class="form-row">
+              <div><div class="stat-label">Organisation Name</div><div style="font-weight:600">${app.name}</div></div>
+              <div><div class="stat-label">Registration Number</div><div style="font-weight:600">${app.registrationNumber}</div></div>
+            </div>
+            <div><div class="stat-label">Website</div><div style="font-weight:600">${app.website || '—'}</div></div>
+            <div><div class="stat-label">Description</div><div style="color:var(--text2);font-size:14px">${app.description || '—'}</div></div>
+          </div>
+        </div>`;
+      return;
+    }
+
+    if (statusNum === 3) {
+      // Rejected — allow reapply
+      document.getElementById('content-area').innerHTML = `
+        <div class="status-card status-rejected">
+          <div class="status-icon">❌</div>
+          <h2 style="color:var(--accent)">Application Rejected</h2>
+          <p>Your previous application for <strong>${app.name}</strong> was rejected. You may submit a new application with updated information.</p>
+        </div>`;
+      renderForm();
+      return;
+    }
+  } catch(e) {
+    // No application found — show form
+  }
+
+  // No application — show form
+  setStep(2);
+  renderForm();
+}
+
+function renderForm() {
+  const existing = document.getElementById('content-area');
+  const formHtml = `
+    <div class="card">
+      <div class="card-header"><h3 style="font-size:16px">Organisation Details</h3></div>
+      <div class="card-body" style="display:flex;flex-direction:column;gap:16px">
+        <div class="alert alert-info">ℹ️ All information is stored on-chain permanently. Make sure details are accurate.</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Organisation Name <span style="color:var(--accent)">*</span></label>
+            <input class="form-control" id="app-name" placeholder="e.g. Save The Forest Foundation"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Registration Number <span style="color:var(--accent)">*</span></label>
+            <input class="form-control" id="app-reg" placeholder="e.g. SSM-12345678"/>
+            <div class="form-hint">Official government registration number</div>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Website</label>
+          <input class="form-control" id="app-website" placeholder="https://yourorganisation.org"/>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Description <span style="color:var(--accent)">*</span></label>
+          <textarea class="form-control" id="app-desc" placeholder="Describe your organisation's mission, activities, and why you want to use CharityChain…" style="min-height:120px"></textarea>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Wallet Address (auto-filled)</label>
+          <input class="form-control" id="app-wallet" value="${account}" disabled style="background:var(--surface2);color:var(--text2)"/>
+          <div class="form-hint">This wallet will be used as your NGO identity on-chain</div>
+        </div>
+      </div>
+      <div class="card-footer">
+        <button class="btn btn-primary btn-lg btn-full" onclick="submitApplication()">Submit Application On-Chain</button>
+      </div>
+    </div>
+
+    <div class="alert alert-warning" style="margin-top:16px">
+      ⚠️ Submitting an application costs a small amount of gas (AVAX). Make sure your wallet has testnet AVAX from the <a href="https://faucet.avax.network" target="_blank" style="color:var(--amber);text-decoration:underline">Fuji faucet</a>.
+    </div>`;
+
+  // Append form below any status card that might be there
+  const formDiv = document.createElement('div');
+  formDiv.innerHTML = formHtml;
+  // If we already have a rejected card, append below it
+  const statusCard = existing.querySelector('.status-card');
+  if (statusCard) {
+    existing.appendChild(formDiv);
+  } else {
+    existing.innerHTML = formHtml;
+  }
+}
+
+async function submitApplication() {
+  const name    = document.getElementById('app-name')?.value.trim();
+  const reg     = document.getElementById('app-reg')?.value.trim();
+  const website = document.getElementById('app-website')?.value.trim() || '';
+  const desc    = document.getElementById('app-desc')?.value.trim();
+
+  if (!name)  { toast('Organisation name is required', 'error'); return; }
+  if (!reg)   { toast('Registration number is required', 'error'); return; }
+  if (!desc)  { toast('Description is required', 'error'); return; }
+
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.applyAsNGO(name, reg, website, desc));
+  if (ok) {
+    setStep(3);
+    await checkStatus();
+  }
+}
+
+window.addEventListener('load', async () => {
+  if (window.ethereum) {
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (accounts.length > 0) {
+      account = accounts[0];
+      document.getElementById('wallet-label').textContent = fmtAddr(account);
+      document.getElementById('wallet-dot').classList.add('connected');
+      document.getElementById('connect-btn').textContent = 'Connected';
+      document.getElementById('connect-btn').disabled = true;
+      setStep(2);
+      await checkStatus();
+    }
+  }
+});
+</script>
+</body>
+</html>

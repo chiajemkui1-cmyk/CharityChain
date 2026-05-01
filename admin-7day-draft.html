@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Admin Dashboard — CharityChain</title>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .admin-gate { display: none; }
+    .not-admin-msg { text-align:center; padding: 80px 24px; }
+    .not-admin-msg h2 { font-size: 24px; margin-bottom: 10px; }
+    .tab-row { display:flex; gap:4px; border-bottom:1px solid var(--border); margin-bottom:28px; flex-wrap:wrap; }
+    .tab-btn {
+      padding:10px 20px; font-size:14px; font-weight:600;
+      border:none; background:none; color:var(--text2);
+      border-bottom:2px solid transparent; cursor:pointer; transition:all .15s;
+    }
+    .tab-btn:hover { color:var(--text); }
+    .tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+    .tab-panel { display:none; }
+    .tab-panel.active { display:block; }
+    .danger-zone { border:1px solid rgba(232,64,64,0.25); border-radius:var(--radius-lg); padding:24px; background:var(--accent-bg); }
+    .danger-zone h3 { color:var(--accent); margin-bottom:6px; }
+    .danger-zone p { font-size:13px; color:var(--text2); margin-bottom:16px; }
+
+    /* Application cards */
+    .app-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
+      padding: 20px;
+      margin-bottom: 14px;
+      box-shadow: var(--shadow);
+    }
+    .app-card-header {
+      display:flex; justify-content:space-between; align-items:flex-start;
+      margin-bottom: 14px; gap: 12px; flex-wrap:wrap;
+    }
+    .app-card-body { display:flex; flex-direction:column; gap:10px; margin-bottom:16px; }
+    .app-field { display:flex; flex-direction:column; gap:3px; }
+    .app-field-label { font-size:11px; font-weight:600; text-transform:uppercase; letter-spacing:.05em; color:var(--text3); }
+    .app-field-value { font-size:14px; color:var(--text); }
+    .app-card-actions { display:flex; gap:10px; flex-wrap:wrap; }
+
+    /* Reject modal */
+    .reject-input { width:100%; }
+
+    .notif-dot {
+      display:inline-flex; align-items:center; justify-content:center;
+      min-width:18px; height:18px; border-radius:100px;
+      background:var(--accent); color:#fff;
+      font-size:10px; font-weight:700; margin-left:6px; padding:0 4px;
+    }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-brand"><div class="topnav-brand-icon">⬡</div>CharityChain</div>
+  <div class="topnav-links">
+    <button class="topnav-link" onclick="location.href='index-7day-draft.html'">Home</button>
+    <button class="topnav-link" onclick="location.href='explore-7day-draft.html'">Explore</button>
+    <button class="topnav-link" onclick="location.href='ngo-7day-draft.html'">NGO Portal</button>
+    <button class="topnav-link active">Admin</button>
+  </div>
+  <div class="topnav-right">
+    <div class="wallet-badge"><div class="wallet-dot" id="wallet-dot"></div><span id="wallet-label">Not connected</span></div>
+    <button class="btn btn-primary btn-sm" id="connect-btn" onclick="handleConnect()">Connect</button>
+  </div>
+</nav>
+
+<div id="not-admin" class="not-admin-msg">
+  <div style="font-size:48px;margin-bottom:16px">🔐</div>
+  <h2>Admin Access Required</h2>
+  <p style="color:var(--text2)">Connect your admin wallet to access this dashboard.</p>
+  <button class="btn btn-primary" style="margin-top:20px" onclick="handleConnect()">Connect Wallet</button>
+</div>
+
+<div id="admin-content" class="admin-gate">
+<div class="page-wrap">
+
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Admin Dashboard</h1>
+      <p class="page-sub" id="admin-addr-display">—</p>
+    </div>
+    <button class="btn btn-secondary" onclick="loadAll()">↻ Refresh</button>
+  </div>
+
+  <div class="stat-grid section">
+    <div class="stat-card"><div class="stat-label">Total Campaigns</div><div class="stat-value" id="s-campaigns">—</div></div>
+    <div class="stat-card"><div class="stat-label">Verified NGOs</div><div class="stat-value" id="s-ngos">—</div></div>
+    <div class="stat-card"><div class="stat-label">Pending Applications</div><div class="stat-value" id="s-pending" style="color:var(--amber)">—</div></div>
+    <div class="stat-card"><div class="stat-label">Platform Status</div><div class="stat-value" id="s-status" style="font-size:20px">—</div></div>
+  </div>
+
+  <div class="tab-row">
+    <button class="tab-btn active" onclick="switchTab('applications')" id="tab-btn-applications">
+      Applications <span class="notif-dot" id="pending-badge" style="display:none">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('ngos')" id="tab-btn-ngos">NGO Management</button>
+    <button class="tab-btn" onclick="switchTab('platform')" id="tab-btn-platform">Platform Controls</button>
+    <button class="tab-btn" onclick="switchTab('transfer')" id="tab-btn-transfer">Admin Transfer</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-applications">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px">
+      <div>
+        <div class="section-title" style="margin-bottom:4px">Pending NGO Applications</div>
+        <div style="font-size:13px;color:var(--text2)">Review and approve or reject organisations applying to create campaigns.</div>
+      </div>
+      <button class="btn btn-secondary btn-sm" onclick="loadApplications()">↻ Refresh</button>
+    </div>
+    <div id="applications-list">
+      <div class="empty-state"><div class="spinner" style="color:var(--text2)"></div></div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-ngos">
+    <div class="grid-2" style="gap:28px">
+
+      <div class="card">
+        <div class="card-header"><h3 style="font-size:16px">Verify NGO Directly</h3><span class="badge badge-neutral">Admin Only</span></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+          <div class="alert alert-info">ℹ️ Use this to verify an NGO without them submitting an application — e.g. for partners you already know.</div>
+          <div class="form-group">
+            <label class="form-label">NGO Wallet Address</label>
+            <input class="form-control" id="verify-addr" placeholder="0x…"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Organisation Name</label>
+            <input class="form-control" id="verify-name" placeholder="e.g. Save The Forest Foundation"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Registration Number</label>
+            <input class="form-control" id="verify-reg" placeholder="e.g. SSM-12345"/>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-primary btn-full" onclick="verifyNGO()">Verify NGO</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><h3 style="font-size:16px">Revoke NGO</h3></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+          <div class="alert alert-warning">⚠️ Prevents the NGO from creating new campaigns. Existing campaigns continue unaffected.</div>
+          <div class="form-group">
+            <label class="form-label">NGO Wallet Address</label>
+            <input class="form-control" id="revoke-addr" placeholder="0x…"/>
+          </div>
+          <div class="form-group">
+            <label class="form-label">Reason</label>
+            <textarea class="form-control" id="revoke-reason" placeholder="Reason for revocation…"></textarea>
+          </div>
+        </div>
+        <div class="card-footer">
+          <button class="btn btn-danger btn-full" onclick="revokeNGO()">Revoke NGO</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card section" style="margin-top:24px">
+      <div class="card-header">
+        <h3 style="font-size:16px">Lookup NGO or Applicant</h3>
+        <div style="display:flex;gap:8px">
+          <input class="form-control" id="lookup-addr" placeholder="0x…" style="width:300px"/>
+          <button class="btn btn-secondary" onclick="lookupNGO()">Search</button>
+        </div>
+      </div>
+      <div class="card-body" id="lookup-result">
+        <div class="empty-state" style="padding:24px 0">Enter an address to look up NGO or application info.</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-platform">
+    <div class="grid-2" style="gap:24px">
+      <div class="card">
+        <div class="card-header"><h3 style="font-size:16px">Campaign Creation</h3></div>
+        <div class="card-body">
+          <p style="font-size:14px;color:var(--text2);margin-bottom:20px">Pausing prevents any NGO from creating new campaigns. Existing campaigns are unaffected.</p>
+          <div id="pause-status" style="margin-bottom:16px"></div>
+          <div style="display:flex;gap:10px">
+            <button class="btn btn-secondary" onclick="pausePlatform()">Pause Platform</button>
+            <button class="btn btn-success" onclick="unpausePlatform()">Unpause Platform</button>
+          </div>
+        </div>
+      </div>
+      <div class="card">
+        <div class="card-header"><h3 style="font-size:16px">Platform Constants</h3></div>
+        <div class="card-body">
+          <div style="display:flex;flex-direction:column;gap:14px">
+            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:var(--text2)">Network</span><span style="font-weight:600">Avalanche Fuji</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:var(--text2)">Chain ID</span><span style="font-weight:600">43113</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:var(--text2)">Quorum Required</span><span style="font-weight:600">30%</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:var(--text2)">Voting Period</span><span style="font-weight:600">60 seconds</span></div>
+            <div style="display:flex;justify-content:space-between;font-size:14px"><span style="color:var(--text2)">Max Rejections</span><span style="font-weight:600">3 (then deadlock)</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-transfer">
+    <div class="grid-2" style="gap:24px">
+      <div class="card">
+        <div class="card-header"><h3 style="font-size:16px">Initiate Transfer</h3></div>
+        <div class="card-body" style="display:flex;flex-direction:column;gap:14px">
+          <div class="alert alert-info">ℹ️ 2-step process. New admin must call acceptAdmin() to confirm.</div>
+          <div class="form-group">
+            <label class="form-label">New Admin Address</label>
+            <input class="form-control" id="new-admin-addr" placeholder="0x…"/>
+          </div>
+          <div id="pending-admin-info" style="font-size:13px;color:var(--text2)"></div>
+        </div>
+        <div class="card-footer" style="display:flex;gap:10px">
+          <button class="btn btn-primary" onclick="transferAdmin()">Initiate Transfer</button>
+          <button class="btn btn-ghost" onclick="cancelTransfer()">Cancel Pending</button>
+        </div>
+      </div>
+      <div class="danger-zone">
+        <h3>⚠️ Danger Zone</h3>
+        <p>Transferring admin role is irreversible once the new admin calls acceptAdmin(). You can cancel using the Cancel button before they accept.</p>
+        <p style="margin-top:10px">If you are the pending admin and want to accept:</p>
+        <button class="btn btn-primary" style="margin-top:8px" onclick="acceptAdmin()">Accept Admin Role</button>
+      </div>
+    </div>
+  </div>
+
+</div>
+</div>
+
+<div class="modal-backdrop" id="reject-modal">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <div class="modal-title">Reject Application</div>
+      <button class="modal-close" onclick="document.getElementById('reject-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <p style="font-size:14px;color:var(--text2)">Provide a reason for rejection. This will be stored on-chain.</p>
+      <div class="form-group">
+        <label class="form-label">Rejection Reason</label>
+        <textarea class="form-control reject-input" id="reject-reason" placeholder="e.g. Registration number could not be verified…" style="min-height:100px"></textarea>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('reject-modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-danger" onclick="confirmReject()">Confirm Rejection</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<script src="contracts-7day-draft.js"></script>
+<script>
+let account = null;
+let rejectTargetAddr = null;
+
+async function handleConnect() {
+  try {
+    account = await connectWallet();
+    document.getElementById('wallet-label').textContent = fmtAddr(account);
+    document.getElementById('wallet-dot').classList.add('connected');
+    document.getElementById('connect-btn').textContent = 'Connected';
+    document.getElementById('connect-btn').disabled = true;
+    await checkAdmin();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function checkAdmin() {
+  const mgr = getManagerContract();
+  const admin = await mgr.platformAdmin();
+  if (account.toLowerCase() === admin.toLowerCase()) {
+    document.getElementById('not-admin').style.display = 'none';
+    document.getElementById('admin-content').style.display = 'block';
+    document.getElementById('admin-addr-display').textContent = 'Admin: ' + account;
+    loadAll();
+  } else {
+    document.getElementById('not-admin').style.display = 'block';
+    document.getElementById('not-admin').querySelector('p').textContent =
+      'Your wallet (' + fmtAddr(account) + ') is not the platform admin.';
+  }
+}
+
+async function loadAll() {
+  try {
+    const mgr = getManagerContract();
+    const stats = await mgr.getPlatformStats();
+    document.getElementById('s-campaigns').textContent = stats.totalCampaigns.toString();
+    document.getElementById('s-ngos').textContent = stats.totalVerifiedNGOs.toString();
+    document.getElementById('s-status').innerHTML = stats.isPaused
+      ? '<span class="badge badge-danger">Paused</span>'
+      : '<span class="badge badge-active">Active</span>';
+    document.getElementById('pause-status').innerHTML = stats.isPaused
+      ? '<div class="alert alert-danger">⛔ Platform is PAUSED.</div>'
+      : '<div class="alert alert-success">✅ Platform is active.</div>';
+
+    const pendingCount = (await mgr.getPendingApplicationCount()).toNumber();
+    document.getElementById('s-pending').textContent = pendingCount;
+    const badge = document.getElementById('pending-badge');
+    if (pendingCount > 0) {
+      badge.style.display = 'inline-flex';
+      badge.textContent = pendingCount;
+    } else {
+      badge.style.display = 'none';
+    }
+
+    const pending = await mgr.pendingAdmin();
+    document.getElementById('pending-admin-info').textContent =
+      pending !== '0x0000000000000000000000000000000000000000'
+        ? '⏳ Pending transfer to: ' + pending
+        : 'No pending transfer.';
+
+    loadApplications();
+  } catch(e) { toast(e.message, 'error'); }
+}
+
+async function loadApplications() {
+  const container = document.getElementById('applications-list');
+  if (!container) return;
+  container.innerHTML = '<div class="empty-state"><div class="spinner" style="color:var(--text2)"></div></div>';
+
+  try {
+    const mgr = getManagerContract();
+
+    // Test contract is reachable first
+    let pending = [];
+    try {
+      pending = await mgr.getPendingApplications();
+    } catch(e) {
+      container.innerHTML = `
+        <div class="alert alert-danger">
+          ⚠️ Could not load applications. Make sure you have deployed the 7-day CharityManager draft and updated the address in contracts-7day-draft.js.<br/><br/>
+          Error: ${e.message}
+        </div>`;
+      return;
+    }
+
+    if (pending.length === 0) {
+      container.innerHTML = `
+        <div class="empty-state">
+          <div class="empty-icon">✅</div>
+          No pending applications. All caught up!
+        </div>`;
+      return;
+    }
+
+    container.innerHTML = '';
+    for (const addr of pending) {
+      try {
+        const app = await mgr.getApplication(addr);
+        const card = document.createElement('div');
+        card.className = 'app-card';
+        card.innerHTML = `
+          <div class="app-card-header">
+            <div>
+              <div style="font-size:17px;font-weight:700;margin-bottom:4px">${app.name}</div>
+              <div style="font-family:monospace;font-size:12px;color:var(--text3)">${addr}</div>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px">
+              <span class="badge badge-warning">Pending Review</span>
+              <span style="font-size:12px;color:var(--text3)">Applied ${fmtDate(app.appliedAt)}</span>
+            </div>
+          </div>
+          <div class="app-card-body">
+            <div class="form-row">
+              <div class="app-field">
+                <div class="app-field-label">Registration Number</div>
+                <div class="app-field-value">${app.registrationNumber}</div>
+              </div>
+              <div class="app-field">
+                <div class="app-field-label">Website</div>
+                <div class="app-field-value">${app.website
+                  ? `<a href="${app.website}" target="_blank" style="color:var(--blue)">${app.website}</a>`
+                  : '—'}</div>
+              </div>
+            </div>
+            <div class="app-field">
+              <div class="app-field-label">Description</div>
+              <div class="app-field-value" style="color:var(--text2);line-height:1.6">${app.description || '—'}</div>
+            </div>
+          </div>
+          <div class="app-card-actions">
+            <button class="btn btn-success" onclick="approveApplication('${addr}')">✓ Approve</button>
+            <button class="btn btn-danger" onclick="openRejectModal('${addr}')">✕ Reject</button>
+            <a href="https://testnet.snowtrace.io/address/${addr}" target="_blank" class="btn btn-ghost btn-sm">View on Explorer ↗</a>
+          </div>`;
+        container.appendChild(card);
+      } catch(e) {
+        console.warn('Could not load app for', addr, e);
+      }
+    }
+  } catch(e) {
+    container.innerHTML = `<div class="alert alert-danger">Error: ${e.message}</div>`;
+  }
+}
+
+async function approveApplication(addr) {
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.approveNGOApplication(addr));
+  if (ok) { toast(fmtAddr(addr) + ' approved as NGO ✓', 'success'); loadAll(); }
+}
+
+function openRejectModal(addr) {
+  rejectTargetAddr = addr;
+  document.getElementById('reject-reason').value = '';
+  document.getElementById('reject-modal').classList.add('open');
+}
+
+async function confirmReject() {
+  const reason = document.getElementById('reject-reason').value.trim();
+  if (!reason) { toast('Provide a rejection reason', 'error'); return; }
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.rejectNGOApplication(rejectTargetAddr, reason));
+  if (ok) {
+    document.getElementById('reject-modal').classList.remove('open');
+    loadAll();
+  }
+}
+
+async function verifyNGO() {
+  const addr = document.getElementById('verify-addr').value.trim();
+  const name = document.getElementById('verify-name').value.trim();
+  const reg  = document.getElementById('verify-reg').value.trim();
+  if (!addr || !name || !reg) { toast('Fill all fields', 'error'); return; }
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.verifyNGO(addr, name, reg));
+  if (ok) {
+    document.getElementById('verify-addr').value = '';
+    document.getElementById('verify-name').value = '';
+    document.getElementById('verify-reg').value = '';
+    loadAll();
+  }
+}
+
+async function revokeNGO() {
+  const addr   = document.getElementById('revoke-addr').value.trim();
+  const reason = document.getElementById('revoke-reason').value.trim();
+  if (!addr || !reason) { toast('Fill all fields', 'error'); return; }
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.revokeNGO(addr, reason));
+  if (ok) loadAll();
+}
+
+async function lookupNGO() {
+  const addr = document.getElementById('lookup-addr').value.trim();
+  if (!addr) { toast('Enter an address', 'error'); return; }
+  const result = document.getElementById('lookup-result');
+  try {
+    const mgr = getManagerContract();
+    const info = await mgr.getNGOInfo(addr);
+    let appHTML = '';
+    try {
+      const app = await mgr.getApplication(addr);
+      appHTML = `
+        <div class="divider"></div>
+        <div style="font-weight:600;margin-bottom:10px;font-size:14px">Application History</div>
+        <div class="form-row">
+          <div><div class="stat-label">Status</div><div><span class="badge ${APP_STATUS_BADGE[Number(app.status)]}">${APP_STATUS[Number(app.status)]}</span></div></div>
+          <div><div class="stat-label">Applied At</div><div style="font-weight:600">${fmtDate(app.appliedAt)}</div></div>
+        </div>`;
+    } catch(e) { appHTML = '<div class="divider"></div><div style="font-size:13px;color:var(--text3)">No application found for this address.</div>'; }
+
+    result.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:14px">
+        <div class="form-row">
+          <div><div class="stat-label">Name</div><div style="font-weight:600">${info.name || '—'}</div></div>
+          <div><div class="stat-label">Reg. Number</div><div style="font-weight:600">${info.registrationNumber || '—'}</div></div>
+        </div>
+        <div class="form-row">
+          <div><div class="stat-label">Verified</div><div>${info.isVerified ? '<span class="badge badge-success">Yes</span>' : '<span class="badge badge-neutral">No</span>'}</div></div>
+          <div><div class="stat-label">Active</div><div>${info.isActive ? '<span class="badge badge-active">Yes</span>' : '<span class="badge badge-danger">No</span>'}</div></div>
+        </div>
+        <div class="form-row">
+          <div><div class="stat-label">Verified At</div><div style="font-weight:600">${fmtDate(info.verifiedAt)}</div></div>
+          <div><div class="stat-label">Campaigns Created</div><div style="font-weight:600">${info.campaignCount.toString()}</div></div>
+        </div>
+        ${appHTML}
+      </div>`;
+  } catch(e) {
+    result.innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+async function pausePlatform() {
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.pausePlatform());
+  if (ok) loadAll();
+}
+
+async function unpausePlatform() {
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.unpausePlatform());
+  if (ok) loadAll();
+}
+
+async function transferAdmin() {
+  const addr = document.getElementById('new-admin-addr').value.trim();
+  if (!addr) { toast('Enter new admin address', 'error'); return; }
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.transferAdmin(addr));
+  if (ok) loadAll();
+}
+
+async function cancelTransfer() {
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.cancelAdminTransfer());
+  if (ok) loadAll();
+}
+
+async function acceptAdmin() {
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.acceptAdmin());
+  if (ok) { toast('You are now the admin!', 'success'); loadAll(); }
+}
+
+function switchTab(name) {
+  const tabs = ['applications', 'ngos', 'platform', 'transfer'];
+  tabs.forEach(t => {
+    document.getElementById('tab-btn-' + t)?.classList.toggle('active', t === name);
+    document.getElementById('tab-' + t)?.classList.toggle('active', t === name);
+  });
+  if (name === 'applications') loadApplications();
+}
+
+window.addEventListener('load', async () => {
+  if (window.ethereum) {
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (accounts.length > 0) {
+      account = accounts[0];
+      document.getElementById('wallet-label').textContent = fmtAddr(account);
+      document.getElementById('wallet-dot').classList.add('connected');
+      document.getElementById('connect-btn').textContent = 'Connected';
+      document.getElementById('connect-btn').disabled = true;
+      await checkAdmin();
+    }
+  }
+});
+</script>
+</body>
+</html>

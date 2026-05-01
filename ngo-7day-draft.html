@@ -1,0 +1,443 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>NGO Portal — CharityChain</title>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .milestone-builder { display:flex; flex-direction:column; gap:10px; }
+    .milestone-row {
+      display:grid; grid-template-columns: 1fr 160px 140px 32px;
+      gap:10px; align-items:center;
+      padding:12px; background:var(--surface2);
+      border:1px solid var(--border); border-radius:var(--radius);
+    }
+    .ms-remove {
+      background:none; border:none; color:var(--text3); font-size:18px;
+      cursor:pointer; display:flex; align-items:center; justify-content:center;
+      border-radius:4px; padding:4px;
+    }
+    .ms-remove:hover { color:var(--accent); background:var(--accent-bg); }
+    .campaign-row { display:flex; align-items:center; gap:12px; padding:14px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    .campaign-row:last-child { border-bottom:none; }
+    .vote-bar { background:var(--surface2); border-radius:100px; height:8px; overflow:hidden; display:flex; }
+    .vote-for { background:var(--green); height:100%; transition:width .4s; }
+    .vote-against { background:var(--accent); height:100%; transition:width .4s; }
+    .not-ngo { text-align:center; padding:80px 24px; display:none; }
+    #ngo-content { display:none; }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-brand"><div class="topnav-brand-icon">⬡</div>CharityChain</div>
+  <div class="topnav-links">
+    <button class="topnav-link" onclick="location.href='index-7day-draft.html'">Home</button>
+    <button class="topnav-link" onclick="location.href='explore-7day-draft.html'">Explore</button>
+    <button class="topnav-link active">NGO Portal</button>
+    <button class="topnav-link" onclick="location.href='admin-7day-draft.html'">Admin</button>
+  </div>
+  <div class="topnav-right">
+    <div class="wallet-badge"><div class="wallet-dot" id="wallet-dot"></div><span id="wallet-label">Not connected</span></div>
+    <button class="btn btn-primary btn-sm" id="connect-btn" onclick="handleConnect()">Connect</button>
+  </div>
+</nav>
+
+<div id="not-ngo" class="not-ngo">
+  <div id="not-ngo-inner">
+    <div style="font-size:48px;margin-bottom:16px">🏢</div>
+    <h2 style="font-size:24px;margin-bottom:10px">NGO Verification Required</h2>
+    <p style="color:var(--text2)">Connect your wallet to check your NGO status.</p>
+    <button class="btn btn-primary" style="margin-top:20px" onclick="handleConnect()">Connect Wallet</button>
+  </div>
+</div>
+
+<div id="ngo-content">
+<div class="page-wrap">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">NGO Portal</h1>
+      <p class="page-sub" id="ngo-name-display">—</p>
+    </div>
+    <button class="btn btn-secondary" onclick="loadMyCampaigns()">↻ Refresh</button>
+  </div>
+
+  <div class="stat-grid section">
+    <div class="stat-card"><div class="stat-label">My Campaigns</div><div class="stat-value" id="n-count">—</div></div>
+    <div class="stat-card"><div class="stat-label">NGO Status</div><div class="stat-value" id="n-status" style="font-size:20px">—</div></div>
+    <div class="stat-card"><div class="stat-label">Registration</div><div class="stat-value" id="n-reg" style="font-size:16px">—</div></div>
+    <div class="stat-card"><div class="stat-label">Verified Since</div><div class="stat-value" id="n-since" style="font-size:16px">—</div></div>
+  </div>
+
+  <div class="section card">
+    <div class="card-header">
+      <h3 style="font-size:16px">Create New Campaign</h3>
+    </div>
+    <div class="card-body" style="display:flex;flex-direction:column;gap:18px">
+      <div class="form-group">
+        <label class="form-label">Mission / Description</label>
+        <textarea class="form-control" id="c-mission" placeholder="Describe your campaign's purpose and impact…"></textarea>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Fundraising Goal (AVAX)</label>
+          <input class="form-control" id="c-goal" type="number" step="0.01" placeholder="e.g. 10"/>
+          <div class="form-hint">Milestone amounts must sum ≤ goal</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Duration (days)</label>
+          <input class="form-control" id="c-days" type="number" min="1" placeholder="e.g. 7"/>
+          <div class="form-hint">The NGO chooses how many days the campaign stays active.</div>
+        </div>
+      </div>
+
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+          <label class="form-label" style="margin:0">Milestones</label>
+          <button class="btn btn-ghost btn-sm" onclick="addMilestone()">+ Add Milestone</button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 160px 140px 32px;gap:10px;padding:0 0 6px;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.05em;color:var(--text3)">
+          <div>Description</div><div>Amount (AVAX)</div><div>Type</div><div></div>
+        </div>
+        <div class="milestone-builder" id="milestones-list"></div>
+        <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2);margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">
+          <span>Total milestone amount:</span>
+          <span id="ms-total" style="font-weight:700">0 AVAX</span>
+        </div>
+      </div>
+    </div>
+    <div class="card-footer">
+      <button class="btn btn-primary btn-lg" onclick="createCampaign()">Deploy Campaign Contract</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">My Campaigns</div>
+    <div id="my-campaigns">
+      <div class="empty-state"><div class="empty-icon">📭</div>No campaigns yet.</div>
+    </div>
+  </div>
+</div>
+</div>
+
+<div class="modal-backdrop" id="campaign-modal">
+  <div class="modal" style="max-width:720px">
+    <div class="modal-header">
+      <div class="modal-title" id="modal-title">Campaign</div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<div id="toast-root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<script src="contracts-7day-draft.js"></script>
+<script>
+let account = null;
+let milestoneCount = 0;
+let activeCampaignAddr = null;
+
+async function handleConnect() {
+  try {
+    account = await connectWallet();
+    document.getElementById('wallet-label').textContent = fmtAddr(account);
+    document.getElementById('wallet-dot').classList.add('connected');
+    document.getElementById('connect-btn').textContent='Connected';
+    document.getElementById('connect-btn').disabled=true;
+    await checkNGO();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function checkNGO() {
+  const mgr = getManagerContract();
+  const verified = await mgr.isVerifiedNGO(account);
+  if (!verified) {
+    document.getElementById('not-ngo').style.display='block';
+    // Check if they have an application
+    try {
+      const app = await mgr.getApplication(account);
+      const statusNum = Number(app.status);
+      const inner = document.getElementById('not-ngo-inner');
+      if (statusNum === 1) {
+        inner.innerHTML = `
+          <div style="font-size:48px;margin-bottom:16px">⏳</div>
+          <h2 style="font-size:24px;margin-bottom:10px;color:var(--amber)">Application Under Review</h2>
+          <p style="color:var(--text2);margin-bottom:16px">Your application for <strong>${app.name}</strong> is pending admin approval. Check back soon.</p>
+          <button class="btn btn-secondary" onclick="location.href='apply-7day-draft.html'">View Application Status</button>`;
+      } else if (statusNum === 3) {
+        inner.innerHTML = `
+          <div style="font-size:48px;margin-bottom:16px">❌</div>
+          <h2 style="font-size:24px;margin-bottom:10px;color:var(--accent)">Application Rejected</h2>
+          <p style="color:var(--text2);margin-bottom:16px">Your previous application was rejected. You can submit a new one.</p>
+          <button class="btn btn-primary" onclick="location.href='apply-7day-draft.html'">Reapply as NGO</button>`;
+      } else {
+        inner.innerHTML = `
+          <div style="font-size:48px;margin-bottom:16px">🏢</div>
+          <h2 style="font-size:24px;margin-bottom:10px">Not a Verified NGO</h2>
+          <p style="color:var(--text2);margin-bottom:16px">Your wallet is not verified. Submit an application to get started.</p>
+          <button class="btn btn-primary" onclick="location.href='apply-7day-draft.html'">Apply as NGO →</button>`;
+      }
+    } catch(e) {
+      // No application at all
+      document.getElementById('not-ngo-inner').innerHTML = `
+        <div style="font-size:48px;margin-bottom:16px">🏢</div>
+        <h2 style="font-size:24px;margin-bottom:10px">Not a Verified NGO</h2>
+        <p style="color:var(--text2);margin-bottom:16px">Submit an application to create campaigns on CharityChain.</p>
+        <button class="btn btn-primary" onclick="location.href='apply-7day-draft.html'">Apply as NGO →</button>`;
+    }
+    return;
+  }
+  document.getElementById('not-ngo').style.display='none';
+  document.getElementById('ngo-content').style.display='block';
+  const info = await mgr.getNGOInfo(account);
+  document.getElementById('ngo-name-display').textContent = info.name + ' — ' + fmtAddr(account);
+  document.getElementById('n-count').textContent = info.campaignCount.toString();
+  document.getElementById('n-status').innerHTML = info.isActive
+    ? '<span class="badge badge-active">Active</span>'
+    : '<span class="badge badge-danger">Revoked</span>';
+  document.getElementById('n-reg').textContent = info.registrationNumber;
+  document.getElementById('n-since').textContent = fmtDate(info.verifiedAt);
+  addMilestone();
+  loadMyCampaigns();
+}
+
+function addMilestone() {
+  const list = document.getElementById('milestones-list');
+  const id = milestoneCount++;
+  const row = document.createElement('div');
+  row.className='milestone-row'; row.id='ms-'+id;
+  row.innerHTML=`
+    <input class="form-control" placeholder="e.g. Purchase seeds and tools" oninput="calcTotal()"/>
+    <input class="form-control" type="number" step="0.01" placeholder="0.0" oninput="calcTotal()"/>
+    <select class="form-control">
+      <option value="impact">Impact Spend</option>
+      <option value="admin">Admin Spend</option>
+    </select>
+    <button class="ms-remove" onclick="document.getElementById('ms-${id}').remove();calcTotal()">✕</button>`;
+  list.appendChild(row);
+}
+
+function calcTotal() {
+  let total = 0;
+  document.querySelectorAll('.milestone-row input[type=number]').forEach(i => { total += parseFloat(i.value)||0; });
+  document.getElementById('ms-total').textContent = total.toFixed(4) + ' AVAX';
+}
+
+async function createCampaign() {
+  const mission = document.getElementById('c-mission').value.trim();
+  const goalAVAX = parseFloat(document.getElementById('c-goal').value);
+  const days  = parseInt(document.getElementById('c-days').value);
+  if (!mission || !goalAVAX || !days) { toast('Fill all campaign fields','error'); return; }
+
+  const rows = document.querySelectorAll('.milestone-row');
+  if (rows.length === 0) { toast('Add at least one milestone','error'); return; }
+
+  const descs=[], amounts=[], isImpact=[];
+  let total = ethers.BigNumber.from(0);
+
+  for (const row of rows) {
+    const inputs = row.querySelectorAll('input');
+    const sel    = row.querySelector('select');
+    const desc   = inputs[0].value.trim();
+    const amt    = parseFloat(inputs[1].value);
+    if (!desc || !amt) { toast('Fill all milestone fields','error'); return; }
+    descs.push(desc);
+    const amtWei = ethers.utils.parseEther(amt.toString());
+    amounts.push(amtWei);
+    isImpact.push(sel.value === 'impact');
+    total = total.add(amtWei);
+  }
+
+  const goalWei = ethers.utils.parseEther(goalAVAX.toString());
+  if (total.gt(goalWei)) { toast('Milestone amounts exceed goal','error'); return; }
+
+  const mgr = getManagerContract(getSigner());
+  const ok = await sendTx(() => mgr.createCampaign(mission, goalWei, days, descs, amounts, isImpact));
+  if (ok) {
+    document.getElementById('c-mission').value='';
+    document.getElementById('c-goal').value='';
+    document.getElementById('c-days').value='';
+    document.getElementById('milestones-list').innerHTML='';
+    milestoneCount=0; addMilestone();
+    loadMyCampaigns();
+  }
+}
+
+async function loadMyCampaigns() {
+  const container = document.getElementById('my-campaigns');
+  try {
+    const mgr = getManagerContract();
+    const campaigns = await mgr.getCampaignsByNGO(account);
+    if (campaigns.length === 0) {
+      container.innerHTML='<div class="empty-state"><div class="empty-icon">📭</div>No campaigns yet. Create one above.</div>';
+      document.getElementById('n-count').textContent='0';
+      return;
+    }
+    document.getElementById('n-count').textContent = campaigns.length;
+    container.innerHTML='';
+
+    for (const addr of [...campaigns].reverse()) {
+      const c = getCampaignContract(addr);
+      const s = await c.getCampaignStats();
+      const lifecycle = getCampaignLifecycle(s);
+      const badge = statusBadge(s._active, s._successful, s._deadlocked, lifecycle);
+      const pctRaised = pct(s._totalRaised, s._targetGoal);
+      const vp = await c.getCurrentVotingProgress();
+
+      const div = document.createElement('div');
+      div.className = 'campaign-row';
+      div.innerHTML = `
+        <div style="flex:1;min-width:200px">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+            <span class="badge ${badge.cls}">${badge.label}</span>
+            ${s._deadlocked ? '<span class="badge badge-danger">Deadlocked</span>' : ''}
+          </div>
+          <div style="font-size:13px;color:var(--text2);font-family:monospace">${fmtAddr(addr)}</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:2px">Deadline: ${fmtDate(s._deadline)}</div>
+        </div>
+        <div style="flex:1;min-width:160px">
+          <div class="progress-wrap" style="margin-bottom:4px"><div class="progress-bar" style="width:${pctRaised}%"></div></div>
+          <div style="font-size:12px;color:var(--text2)">${fmtAVAX(s._totalRaised)} / ${fmtAVAX(s._targetGoal)} (${pctRaised}%)</div>
+        </div>
+        <div style="font-size:13px;color:var(--text2);min-width:120px">
+          Milestone ${s._currentMilestone.toString()} / ${s._totalMilestones.toString()}
+          ${vp.active ? '<br/><span class="badge badge-blue">Voting Active</span>' : ''}
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          ${s._active && s._totalRaised.gte(s._targetGoal) && !vp.active && !s._deadlocked
+            ? `<button class="btn btn-primary btn-sm" onclick="startVoting('${addr}')">Start Vote</button>` : ''}
+          ${vp.active && !vp.active
+            ? '' : ''}
+          ${s._active && vp.active && Math.floor(Date.now()/1000) >= Number(vp.deadline)
+            ? `<button class="btn btn-success btn-sm" onclick="releaseFunds('${addr}')">Resolve Vote</button>` : ''}
+          <button class="btn btn-ghost btn-sm" onclick="openCampaignModal('${addr}')">Details</button>
+        </div>`;
+      container.appendChild(div);
+    }
+  } catch(e) { container.innerHTML=`<div class="empty-state">⚠️ ${e.message}</div>`; }
+}
+
+async function startVoting(addr) {
+  const c = getCampaignContract(addr, getSigner());
+  const ok = await sendTx(() => c.startMilestoneVoting());
+  if (ok) loadMyCampaigns();
+}
+
+async function releaseFunds(addr) {
+  const c = getCampaignContract(addr, getSigner());
+  const ok = await sendTx(() => c.releaseFunds());
+  if (ok) loadMyCampaigns();
+}
+
+async function openCampaignModal(addr) {
+  activeCampaignAddr = addr;
+  const modal = document.getElementById('campaign-modal');
+  modal.classList.add('open');
+  document.getElementById('modal-title').textContent = fmtAddr(addr);
+  document.getElementById('modal-body').innerHTML = '<div class="empty-state"><div class="spinner" style="color:var(--text2)"></div></div>';
+  document.getElementById('modal-footer').innerHTML = '';
+
+  try {
+    const c = getCampaignContract(addr);
+    const s = await c.getCampaignStats();
+    const vp = await c.getCurrentVotingProgress();
+    const msCount = s._totalMilestones.toNumber();
+    const lifecycle = getCampaignLifecycle(s);
+    const badge = statusBadge(s._active, s._successful, s._deadlocked, lifecycle);
+    const pctRaised = pct(s._totalRaised, s._targetGoal);
+
+    let msHTML = '';
+    for (let i = 0; i < msCount; i++) {
+      const m = await c.getMilestone(i);
+      const done = m.fundsReleased;
+      const current = i === s._currentMilestone.toNumber() && !done;
+      msHTML += `
+        <div class="milestone-item">
+          <div class="milestone-num ${done?'done':current?'current':''}">${done?'✓':i+1}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px">${m.description}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${fmtAVAX(m.amountToRelease)} · ${m.isImpact?'Impact':'Admin'} spend · ${m.rejectionCount.toString()} rejection(s)</div>
+            ${m.votingActive ? `<div class="alert alert-info" style="margin-top:8px;font-size:12px">🗳 Voting active — deadline ${fmtDate(m.voteDeadline)}</div>` : ''}
+            ${done ? '<span class="badge badge-success" style="margin-top:6px">Released</span>' : ''}
+          </div>
+        </div>`;
+    }
+
+    document.getElementById('modal-body').innerHTML = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:4px">
+        <span class="badge ${badge.cls}">${badge.label}</span>
+        ${s._deadlocked ? '<span class="badge badge-danger">Deadlocked</span>' : ''}
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:16px">${fmtAddr(addr)}</div>
+
+      <div class="stat-grid" style="margin-bottom:20px">
+        <div class="stat-card" style="padding:14px"><div class="stat-label">Raised</div><div class="stat-value" style="font-size:20px">${fmtAVAX(s._totalRaised)}</div></div>
+        <div class="stat-card" style="padding:14px"><div class="stat-label">Goal</div><div class="stat-value" style="font-size:20px">${fmtAVAX(s._targetGoal)}</div></div>
+        <div class="stat-card" style="padding:14px"><div class="stat-label">Donors</div><div class="stat-value" style="font-size:20px">${s._donorCount.toString()}</div></div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px">
+          <span>Funding progress</span><span style="font-weight:600">${pctRaised}%</span>
+        </div>
+        <div class="progress-wrap"><div class="progress-bar" style="width:${pctRaised}%"></div></div>
+      </div>
+
+      ${vp.active ? `
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-body">
+          <div style="font-weight:600;margin-bottom:10px">Current Vote Progress</div>
+          <div class="vote-bar" style="height:12px;margin-bottom:8px">
+            <div class="vote-for" style="width:${vp.totalVotes.gt(0)?pct(vp.votesFor,vp.totalVotes):0}%"></div>
+            <div class="vote-against" style="width:${vp.totalVotes.gt(0)?pct(vp.votesAgainst,vp.totalVotes):0}%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2)">
+            <span style="color:var(--green)">For: ${fmtAVAX(vp.votesFor)}</span>
+            <span>Quorum: ${vp.quorumMet ? '✅ Met' : '❌ Not met'}</span>
+            <span style="color:var(--accent)">Against: ${fmtAVAX(vp.votesAgainst)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text2);margin-top:6px">Deadline: ${fmtDate(vp.deadline)} · Rejections: ${vp.rejectionCount.toString()}/3</div>
+        </div>
+      </div>` : ''}
+
+      <div class="section-title">Milestones</div>
+      ${msHTML}`;
+
+    const footer = document.getElementById('modal-footer');
+    if (s._active && s._totalRaised.gte(s._targetGoal) && !vp.active && !s._deadlocked) {
+      const btn = document.createElement('button');
+      btn.className='btn btn-primary'; btn.textContent='Start Milestone Voting';
+      btn.onclick = () => { closeModal(); startVoting(addr); };
+      footer.appendChild(btn);
+    }
+    if (s._active && vp.active && Date.now()/1000 >= Number(vp.deadline)) {
+      const btn = document.createElement('button');
+      btn.className='btn btn-success'; btn.textContent='Resolve Vote';
+      btn.onclick = () => { closeModal(); releaseFunds(addr); };
+      footer.appendChild(btn);
+    }
+    const closeBtn = document.createElement('button');
+    closeBtn.className='btn btn-ghost'; closeBtn.textContent='Close';
+    closeBtn.onclick = closeModal;
+    footer.appendChild(closeBtn);
+  } catch(e) {
+    document.getElementById('modal-body').innerHTML = `<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+function closeModal() {
+  document.getElementById('campaign-modal').classList.remove('open');
+}
+
+window.addEventListener('load', async () => {
+  if (window.ethereum) {
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (accounts.length > 0) { account = accounts[0]; document.getElementById('wallet-label').textContent = fmtAddr(account); document.getElementById('wallet-dot').classList.add('connected'); document.getElementById('connect-btn').textContent='Connected'; document.getElementById('connect-btn').disabled=true; await checkNGO(); }
+  }
+});
+</script>
+</body>
+</html>

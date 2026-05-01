@@ -1,0 +1,557 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Explore Campaigns — CharityChain</title>
+  <link rel="stylesheet" href="style.css"/>
+  <style>
+    .filters { display:flex; gap:10px; flex-wrap:wrap; margin-bottom:24px; align-items:center; }
+    .filter-btn {
+      padding:6px 16px; border-radius:100px; font-size:13px; font-weight:600;
+      border:1px solid var(--border); background:var(--surface);
+      color:var(--text2); cursor:pointer; transition:all .15s;
+    }
+    .filter-btn:hover { background:var(--surface2); color:var(--text); }
+    .filter-btn.active { background:var(--text); color:var(--bg); border-color:var(--text); }
+    .vote-bar { background:var(--surface2); border-radius:100px; height:10px; overflow:hidden; display:flex; }
+    .vote-for { background:var(--green); height:100%; }
+    .vote-against { background:var(--accent); height:100%; }
+    .donor-history { display:flex; flex-direction:column; gap:6px; }
+    .donor-history-item {
+      display:flex; justify-content:space-between; align-items:center;
+      padding:10px 14px; background:var(--surface2);
+      border:1px solid var(--border); border-radius:var(--radius);
+      font-size:13px;
+    }
+    .refund-section { background:var(--accent-bg); border:1px solid rgba(232,64,64,.2); border-radius:var(--radius-lg); padding:20px; }
+    .campaign-action-row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; }
+  </style>
+</head>
+<body>
+
+<nav class="topnav">
+  <div class="topnav-brand"><div class="topnav-brand-icon">⬡</div>CharityChain</div>
+  <div class="topnav-links">
+    <button class="topnav-link" onclick="location.href='index-7day-draft.html'">Home</button>
+    <button class="topnav-link active">Explore</button>
+    <button class="topnav-link" onclick="location.href='ngo-7day-draft.html'">NGO Portal</button>
+    <button class="topnav-link" onclick="location.href='admin-7day-draft.html'">Admin</button>
+  </div>
+  <div class="topnav-right">
+    <div class="wallet-badge"><div class="wallet-dot" id="wallet-dot"></div><span id="wallet-label">Not connected</span></div>
+    <button class="btn btn-primary btn-sm" id="connect-btn" onclick="handleConnect()">Connect</button>
+  </div>
+</nav>
+
+<div class="page-wrap">
+  <div class="page-header">
+    <div>
+      <h1 class="page-title">Explore Campaigns</h1>
+      <p class="page-sub">Browse, donate, and vote on charity milestones — all on-chain.</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary" onclick="loadCampaigns()">↻ Refresh</button>
+    </div>
+  </div>
+
+  <!-- My Donations Summary -->
+  <div id="my-donations-bar" style="display:none" class="card section">
+    <div class="card-header">
+      <h3 style="font-size:16px">My Donation Activity</h3>
+      <span id="my-total-donated" style="font-weight:700;color:var(--accent)"></span>
+    </div>
+    <div class="card-body" id="my-donations-list"></div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filters">
+    <span style="font-size:13px;font-weight:600;color:var(--text2)">Filter:</span>
+    <button class="filter-btn active" onclick="setFilter('all',this)">All</button>
+    <button class="filter-btn" onclick="setFilter('active',this)">Active</button>
+    <button class="filter-btn" onclick="setFilter('successful',this)">Successful</button>
+    <button class="filter-btn" onclick="setFilter('failed',this)">Failed / Deadlocked</button>
+    <div style="margin-left:auto;display:flex;gap:8px;align-items:center">
+      <span style="font-size:13px;color:var(--text2)" id="total-count"></span>
+    </div>
+  </div>
+
+  <!-- Campaign grid -->
+  <div class="campaign-grid" id="campaign-grid">
+    <div class="empty-state" style="grid-column:1/-1">
+      <div class="empty-icon">⛓️</div>
+      <div id="grid-status">Connect wallet to load campaigns</div>
+    </div>
+  </div>
+
+  <!-- Pagination -->
+  <div style="display:flex;justify-content:center;gap:10px;margin-top:28px" id="pagination"></div>
+</div>
+
+<!-- Campaign Detail Modal -->
+<div class="modal-backdrop" id="campaign-modal">
+  <div class="modal" style="max-width:740px">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modal-addr">—</div>
+        <div style="font-size:12px;color:var(--text3);margin-top:2px" id="modal-ngo-addr"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+    <div class="modal-footer" id="modal-footer"></div>
+  </div>
+</div>
+
+<!-- Donate modal -->
+<div class="modal-backdrop" id="donate-modal">
+  <div class="modal" style="max-width:420px">
+    <div class="modal-header">
+      <div class="modal-title">Donate AVAX</div>
+      <button class="modal-close" onclick="document.getElementById('donate-modal').classList.remove('open')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="alert alert-info" style="margin-bottom:0">Your AVAX will be locked in the campaign smart contract. You get governance voting rights proportional to your donation.</div>
+      <div class="form-group">
+        <label class="form-label">Amount (AVAX)</label>
+        <input class="form-control" id="donate-amount" type="number" step="0.01" placeholder="e.g. 1.5"/>
+        <div class="form-hint" id="donate-addr-hint"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="document.getElementById('donate-modal').classList.remove('open')">Cancel</button>
+      <button class="btn btn-primary" onclick="confirmDonate()">Confirm Donation</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast-root"></div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<script src="contracts-7day-draft.js"></script>
+<script>
+let account = null;
+let allCampaignAddrs = [];
+let filteredAddrs = [];
+let currentFilter = 'all';
+let currentPage = 0;
+const PAGE_SIZE = 9;
+let activeDonateAddr = null;
+let activeDetailAddr = null;
+let campaignCache = {};
+
+async function handleConnect() {
+  try {
+    account = await connectWallet();
+    document.getElementById('wallet-label').textContent = fmtAddr(account);
+    document.getElementById('wallet-dot').classList.add('connected');
+    document.getElementById('connect-btn').textContent='Connected';
+    document.getElementById('connect-btn').disabled=true;
+    loadCampaigns();
+  } catch(e) { toast(e.message,'error'); }
+}
+
+async function loadCampaigns() {
+  document.getElementById('grid-status').textContent = 'Loading…';
+  try {
+    const mgr = getManagerContract();
+    const total = (await mgr.getCampaignCount()).toNumber();
+    if (total === 0) {
+      document.getElementById('campaign-grid').innerHTML = '<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">📭</div>No campaigns yet.</div>';
+      return;
+    }
+
+    // Load all addresses (paginated in chunks)
+    allCampaignAddrs = [];
+    let offset = 0;
+    while (offset < total) {
+      const { campaigns } = await mgr.getCampaignsPaginated(offset, 20);
+      allCampaignAddrs.push(...campaigns);
+      offset += 20;
+    }
+    allCampaignAddrs.reverse();
+
+    // Load stats for each
+    campaignCache = {};
+    for (const addr of allCampaignAddrs) {
+      const c = getCampaignContract(addr);
+      try {
+        const s = await c.getCampaignStats();
+        const m = await c.mission();
+        campaignCache[addr] = { stats: s, mission: m };
+      } catch(e) { /* skip */ }
+    }
+
+    document.getElementById('total-count').textContent = `${total} campaign${total!==1?'s':''}`;
+    applyFilter();
+    if (account) loadMyDonations();
+  } catch(e) {
+    document.getElementById('campaign-grid').innerHTML = `<div class="empty-state" style="grid-column:1/-1">⚠️ ${e.message}</div>`;
+  }
+}
+
+function setFilter(f, btn) {
+  currentFilter = f;
+  currentPage = 0;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  applyFilter();
+}
+
+function applyFilter() {
+  filteredAddrs = allCampaignAddrs.filter(addr => {
+    const d = campaignCache[addr];
+    if (!d) return false;
+    const s = d.stats;
+    const lifecycle = getCampaignLifecycle(s);
+    if (currentFilter === 'active') return s._active && !lifecycle.shouldHideDonate;
+    if (currentFilter === 'successful') return (!s._active && s._successful) || lifecycle.fullyDelivered;
+    if (currentFilter === 'failed') return (!s._active && !s._successful) || lifecycle.refundsActive;
+    return true;
+  });
+  renderPage();
+}
+
+function renderPage() {
+  const start = currentPage * PAGE_SIZE;
+  const slice = filteredAddrs.slice(start, start + PAGE_SIZE);
+  const grid = document.getElementById('campaign-grid');
+
+  if (slice.length === 0) {
+    grid.innerHTML='<div class="empty-state" style="grid-column:1/-1"><div class="empty-icon">🔍</div>No campaigns match this filter.</div>';
+    document.getElementById('pagination').innerHTML='';
+    return;
+  }
+
+  grid.innerHTML = '';
+  for (const addr of slice) {
+    const d = campaignCache[addr];
+    if (!d) continue;
+    const s = d.stats;
+    const lifecycle = getCampaignLifecycle(s);
+    const badge = statusBadge(s._active, s._successful, s._deadlocked, lifecycle);
+    const pctRaised = pct(s._totalRaised, s._targetGoal);
+    const card = document.createElement('div');
+    card.className='campaign-card';
+    card.innerHTML=`
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:10px">
+        <span class="badge ${badge.cls}">${badge.label}</span>
+        ${s._deadlocked ? '<span class="badge badge-danger" style="margin-left:4px">Deadlocked</span>' : ''}
+        <span style="font-size:11px;color:var(--text3)">${fmtAddr(addr)}</span>
+      </div>
+      <p style="font-size:14px;font-weight:600;line-height:1.4;margin-bottom:10px;min-height:40px">${(d.mission||'').slice(0,80)}${(d.mission||'').length>80?'…':''}</p>
+      <div class="progress-wrap" style="margin-bottom:6px"><div class="progress-bar ${pctRaised>=100?'green':''}" style="width:${pctRaised}%"></div></div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text2);margin-bottom:14px">
+        <span>${fmtAVAX(s._totalRaised)}</span>
+        <span>${pctRaised}% of ${fmtAVAX(s._targetGoal)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--text3);margin-bottom:16px">
+        <span>${s._donorCount.toString()} donors</span>
+        <span>Milestone ${s._currentMilestone}/${s._totalMilestones}</span>
+        <span>${!lifecycle.isExpired && s._active ? fmtCountdown(s._deadline) : 'Ended'}</span>
+      </div>
+      <div style="display:flex;gap:8px">
+        ${s._active && !lifecycle.shouldHideDonate ? `<button class="btn btn-primary btn-sm" onclick="event.stopPropagation();openDonate('${addr}')">Donate</button>` : ''}
+        <button class="btn btn-ghost btn-sm" onclick="openDetail('${addr}')">View Details</button>
+      </div>`;
+    grid.appendChild(card);
+  }
+
+  // Pagination
+  const pages = Math.ceil(filteredAddrs.length / PAGE_SIZE);
+  const pag = document.getElementById('pagination');
+  pag.innerHTML='';
+  if (pages > 1) {
+    for (let i=0;i<pages;i++) {
+      const btn=document.createElement('button');
+      btn.className='btn '+(i===currentPage?'btn-primary':'btn-secondary')+' btn-sm';
+      btn.textContent=i+1;
+      btn.onclick=()=>{currentPage=i;renderPage();window.scrollTo({top:0,behavior:'smooth'});};
+      pag.appendChild(btn);
+    }
+  }
+}
+
+async function loadMyDonations() {
+  if (!account) return;
+  const bar = document.getElementById('my-donations-bar');
+  const list = document.getElementById('my-donations-list');
+  const donatedTo = [];
+  let totalWei = ethers.BigNumber.from(0);
+
+  for (const addr of allCampaignAddrs) {
+    try {
+      const c = getCampaignContract(addr);
+      const contrib = await c.donorContributions(account);
+      if (contrib.gt(0)) {
+        donatedTo.push({ addr, contrib });
+        totalWei = totalWei.add(contrib);
+      }
+    } catch(e) {}
+  }
+
+  if (donatedTo.length === 0) { bar.style.display='none'; return; }
+  bar.style.display='block';
+  document.getElementById('my-total-donated').textContent = 'Total: ' + fmtAVAX(totalWei);
+  list.innerHTML = '<div class="donor-history">' + donatedTo.map(d=>`
+    <div class="donor-history-item">
+      <div><div style="font-family:monospace;font-size:12px">${fmtAddr(d.addr)}</div></div>
+      <div style="font-weight:600">${fmtAVAX(d.contrib)}</div>
+      <button class="btn btn-ghost btn-sm" onclick="openDetail('${d.addr}')">View</button>
+    </div>`).join('') + '</div>';
+}
+
+async function openDonate(addr) {
+  try {
+    const c = getCampaignContract(addr);
+    const s = await c.getCampaignStats();
+    campaignCache[addr] = { ...(campaignCache[addr] || {}), stats: s };
+    if (getCampaignLifecycle(s).shouldHideDonate) {
+      toast('This campaign is expired or locked. Donations are disabled.', 'error');
+      applyFilter();
+      return;
+    }
+  } catch(e) {
+    toast(e.message, 'error');
+    return;
+  }
+
+  activeDonateAddr = addr;
+  document.getElementById('donate-addr-hint').textContent = 'Campaign: ' + fmtAddr(addr);
+  document.getElementById('donate-amount').value = '';
+  document.getElementById('donate-modal').classList.add('open');
+}
+
+async function confirmDonate() {
+  const amt = parseFloat(document.getElementById('donate-amount').value);
+  if (!amt || amt <= 0) { toast('Enter a valid amount','error'); return; }
+  const c = getCampaignContract(activeDonateAddr, getSigner());
+  const s = await c.getCampaignStats();
+  if (getCampaignLifecycle(s).shouldHideDonate) {
+    toast('This campaign is expired or locked. Donations are disabled.', 'error');
+    document.getElementById('donate-modal').classList.remove('open');
+    campaignCache[activeDonateAddr] = { ...(campaignCache[activeDonateAddr] || {}), stats: s };
+    applyFilter();
+    return;
+  }
+  const ok = await sendTx(() => c.donate({ value: ethers.utils.parseEther(amt.toString()) }));
+  if (ok) {
+    document.getElementById('donate-modal').classList.remove('open');
+    // Refresh cache for this campaign
+    const s = await c.getCampaignStats();
+    const m = await c.mission();
+    campaignCache[activeDonateAddr] = { stats: s, mission: m };
+    applyFilter();
+    loadMyDonations();
+  }
+}
+
+async function openDetail(addr) {
+  activeDetailAddr = addr;
+  const modal = document.getElementById('campaign-modal');
+  modal.classList.add('open');
+  document.getElementById('modal-addr').textContent = fmtAddr(addr);
+  document.getElementById('modal-body').innerHTML = '<div class="empty-state"><div class="spinner" style="color:var(--text2)"></div></div>';
+  document.getElementById('modal-footer').innerHTML = '';
+
+  try {
+    const c = getCampaignContract(addr);
+    const s = await c.getCampaignStats();
+    const vp = await c.getCurrentVotingProgress();
+    const missionText = await c.mission();
+    const ngoAddr = await c.ngoAddress();
+    const myContrib = account ? await c.donorContributions(account) : ethers.BigNumber.from(0);
+    const myVoted = account ? await c.hasVotedOnCurrent(account) : false;
+    const lifecycle = getCampaignLifecycle(s);
+    const badge = statusBadge(s._active, s._successful, s._deadlocked, lifecycle);
+    const pctRaised = pct(s._totalRaised, s._targetGoal);
+    let refundPreflight = { checked: false, ok: false, reason: '' };
+
+    document.getElementById('modal-ngo-addr').textContent = 'NGO: ' + fmtAddr(ngoAddr);
+
+    let msHTML = '';
+    for (let i=0; i<s._totalMilestones.toNumber(); i++) {
+      const m = await c.getMilestone(i);
+      const done = m.fundsReleased;
+      const cur = i === s._currentMilestone.toNumber() && !done;
+      msHTML += `
+        <div class="milestone-item">
+          <div class="milestone-num ${done?'done':cur?'current':''}">${done?'✓':i+1}</div>
+          <div style="flex:1">
+            <div style="font-weight:600;font-size:14px">${m.description}</div>
+            <div style="font-size:12px;color:var(--text2);margin-top:2px">${fmtAVAX(m.amountToRelease)} · <span class="badge badge-neutral" style="font-size:10px">${m.isImpact?'Impact':'Admin'}</span> · ${m.rejectionCount}/3 rejections</div>
+            ${done ? '<span class="badge badge-success" style="margin-top:6px;font-size:10px">✓ Released</span>' : ''}
+          </div>
+        </div>`;
+    }
+
+    const needsFinalizeBeforeRefund = false;
+    const claimRefundReady = lifecycle.conditionDeadlocked || !s._active || lifecycle.canAutoFinalizeOnRefund;
+    if (lifecycle.shouldShowRefundPanel && claimRefundReady && account && myContrib.gt(0)) {
+      try {
+        const signedCampaign = getCampaignContract(addr, getSigner());
+        await signedCampaign.callStatic.claimRefund();
+        refundPreflight = { checked: true, ok: true, reason: '' };
+      } catch(e) {
+        refundPreflight = { checked: true, ok: false, reason: txErrorMessage(e) };
+      }
+    }
+    const canClaimRefund = refundPreflight.ok;
+    const refundReason = lifecycle.conditionDeadlocked
+      ? 'Deadlocked'
+      : lifecycle.conditionFundingFailure
+        ? 'Funding goal not met before the deadline'
+        : 'Milestone delivery incomplete after the deadline';
+    const refundDiagnostics = [
+      `Active: ${s._active ? 'yes' : 'no'}`,
+      `Successful: ${s._successful ? 'yes' : 'no'}`,
+      `Deadlocked: ${s._deadlocked ? 'yes' : 'no'}`,
+      `Expired: ${lifecycle.isExpired ? 'yes' : 'no'}`,
+      `Raised < Goal: ${s._totalRaised.lt(s._targetGoal) ? 'yes' : 'no'}`,
+      `Milestone: ${s._currentMilestone.toString()}/${s._totalMilestones.toString()}`,
+    ].join(' · ');
+
+    document.getElementById('modal-body').innerHTML = `
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px">
+        <span class="badge ${badge.cls}">${badge.label}</span>
+        ${s._deadlocked?'<span class="badge badge-danger">Deadlocked</span>':''}
+        ${lifecycle.isExpired?'<span class="badge badge-warning">Expired</span>':''}
+      </div>
+      <p style="font-size:15px;color:var(--text2);line-height:1.6;margin-bottom:20px">${missionText}</p>
+
+      <div class="stat-grid" style="margin-bottom:20px">
+        <div class="stat-card" style="padding:14px"><div class="stat-label">Raised</div><div class="stat-value" style="font-size:18px">${fmtAVAX(s._totalRaised)}</div></div>
+        <div class="stat-card" style="padding:14px"><div class="stat-label">Goal</div><div class="stat-value" style="font-size:18px">${fmtAVAX(s._targetGoal)}</div></div>
+        <div class="stat-card" style="padding:14px"><div class="stat-label">Donors</div><div class="stat-value" style="font-size:18px">${s._donorCount.toString()}</div></div>
+        <div class="stat-card" style="padding:14px"><div class="stat-label">Deadline</div><div class="stat-value" style="font-size:14px">${fmtDate(s._deadline)}</div></div>
+      </div>
+
+      <div style="margin-bottom:20px">
+        <div style="display:flex;justify-content:space-between;font-size:13px;margin-bottom:6px"><span>Funding</span><span style="font-weight:600">${pctRaised}%</span></div>
+        <div class="progress-wrap"><div class="progress-bar ${pctRaised>=100?'green':''}" style="width:${pctRaised}%"></div></div>
+      </div>
+
+      ${myContrib.gt(0) ? `
+      <div class="alert alert-success" style="margin-bottom:16px">
+        💙 You donated <strong>${fmtAVAX(myContrib)}</strong> — your vote weight on this campaign.
+      </div>` : ''}
+
+      ${vp.active ? `
+      <div class="card" style="margin-bottom:20px">
+        <div class="card-body">
+          <div style="font-weight:700;font-size:15px;margin-bottom:12px">🗳 Milestone Vote in Progress</div>
+          <div class="vote-bar" style="height:14px;border-radius:6px;margin-bottom:10px">
+            <div class="vote-for" style="width:${vp.totalVotes.gt(0)?pct(vp.votesFor,vp.totalVotes):0}%"></div>
+            <div class="vote-against" style="width:${vp.totalVotes.gt(0)?pct(vp.votesAgainst,vp.totalVotes):0}%"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:13px">
+            <span style="color:var(--green);font-weight:600">✓ For: ${fmtAVAX(vp.votesFor)}</span>
+            <span style="color:var(--text2)">Quorum: ${fmtAVAX(vp.totalVotes)} / ${fmtAVAX(vp.quorumRequired)} needed (${vp.quorumMet?'✅ Met':'❌ Not met'})</span>
+            <span style="color:var(--accent);font-weight:600">✗ Against: ${fmtAVAX(vp.votesAgainst)}</span>
+          </div>
+          <div style="font-size:12px;color:var(--text3);margin-top:8px">
+            Deadline: ${fmtDate(vp.deadline)} · Rejections: ${vp.rejectionCount}/3
+          </div>
+          ${myVoted ? '<div class="alert alert-info" style="margin-top:10px;font-size:12px">✅ You have already voted on this milestone.</div>' : ''}
+        </div>
+      </div>` : ''}
+
+      ${lifecycle.shouldShowRefundPanel ? `
+      <div class="refund-section" style="margin-bottom:20px">
+        <div style="font-weight:700;margin-bottom:6px;color:var(--accent)">Refunds Active</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px">${refundReason}. Donors can claim a proportional refund from the campaign contract. If the campaign is still marked active, the refund transaction will auto-finalize it first.</div>
+        <div class="campaign-action-row">
+          <button class="btn btn-danger" onclick="claimRefund('${addr}')" ${canClaimRefund ? '' : 'disabled'}>Claim Refund</button>
+        </div>
+        ${!account ? '<div class="form-hint" style="margin-top:8px">Connect your wallet to claim a refund.</div>' : ''}
+        ${account && !claimRefundReady ? '<div class="form-hint" style="margin-top:8px">Refund claiming is locked until finalization completes.</div>' : ''}
+        ${claimRefundReady && account && myContrib.isZero() ? '<div class="form-hint" style="margin-top:8px">This wallet has no refundable contribution for this campaign.</div>' : ''}
+        ${refundPreflight.checked && !refundPreflight.ok ? `<div class="form-hint" style="margin-top:8px">Contract says refund is not claimable: ${refundPreflight.reason}</div>` : ''}
+        <div class="form-hint" style="margin-top:8px">${refundDiagnostics}</div>
+      </div>` : ''}
+
+      ${lifecycle.needsContractUpgradeForAbandonedRefund ? `
+      <div class="refund-section" style="margin-bottom:20px">
+        <div style="font-weight:700;margin-bottom:6px;color:var(--accent)">Refunds Not Available In Current Contract</div>
+        <div style="font-size:13px;color:var(--text2);margin-bottom:12px">This campaign reached its goal, expired, and still has incomplete milestones. The current deployed contract marks that as successful, so <code>claimRefund()</code> reverts with <code>RefundNotAvailable()</code>.</div>
+        <div class="form-hint">${refundDiagnostics}</div>
+      </div>` : ''}
+
+      <div class="section-title">Milestones</div>
+      ${msHTML}
+
+      <div class="divider"></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--text2)">
+        <span>Impact Spent: <strong>${fmtAVAX(s._impactSpent)}</strong></span>
+        <span>Admin Spent: <strong>${fmtAVAX(s._adminSpent)}</strong></span>
+        <span>Remaining: <strong>${fmtAVAX(s._totalRaised.sub(s._adminSpent).sub(s._impactSpent))}</strong></span>
+      </div>`;
+
+    const footer = document.getElementById('modal-footer');
+    if (s._active && !lifecycle.shouldHideDonate && account && myContrib.gt(0) && vp.active && !myVoted) {
+      const forBtn = document.createElement('button');
+      forBtn.className='btn btn-success'; forBtn.textContent='Vote For ✓';
+      forBtn.onclick = () => castVote(addr, true);
+      const againstBtn = document.createElement('button');
+      againstBtn.className='btn btn-danger'; againstBtn.textContent='Vote Against ✗';
+      againstBtn.onclick = () => castVote(addr, false);
+      footer.appendChild(forBtn); footer.appendChild(againstBtn);
+    }
+    if (s._active && !lifecycle.shouldHideDonate) {
+      const donateBtn = document.createElement('button');
+      donateBtn.className='btn btn-primary'; donateBtn.textContent='Donate AVAX';
+      donateBtn.onclick = () => { closeModal(); openDonate(addr); };
+      footer.appendChild(donateBtn);
+    }
+    const closeBtn = document.createElement('button');
+    closeBtn.className='btn btn-ghost'; closeBtn.textContent='Close';
+    closeBtn.onclick = closeModal;
+    footer.appendChild(closeBtn);
+
+  } catch(e) {
+    document.getElementById('modal-body').innerHTML=`<div class="alert alert-danger">${e.message}</div>`;
+  }
+}
+
+async function castVote(addr, support) {
+  const c = getCampaignContract(addr, getSigner());
+  const ok = await sendTx(() => c.vote(support));
+  if (ok) { closeModal(); setTimeout(()=>openDetail(addr), 1000); }
+}
+
+async function claimRefund(addr) {
+  const c = getCampaignContract(addr, getSigner());
+  try {
+    await c.callStatic.claimRefund();
+  } catch(e) {
+    toast('Refund is not claimable: ' + txErrorMessage(e), 'error');
+    if (activeDetailAddr === addr) openDetail(addr);
+    return;
+  }
+  const ok = await sendTx(() => c.claimRefund());
+  if (ok) { closeModal(); loadCampaigns(); }
+}
+
+function closeModal() {
+  document.getElementById('campaign-modal').classList.remove('open');
+}
+
+// Handle ?c= query param for deep linking
+const urlAddr = new URLSearchParams(location.search).get('c');
+
+window.addEventListener('load', async () => {
+  if (window.ethereum) {
+    const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+    if (accounts.length > 0) {
+      account = accounts[0];
+      document.getElementById('wallet-label').textContent = fmtAddr(account);
+      document.getElementById('wallet-dot').classList.add('connected');
+      document.getElementById('connect-btn').textContent='Connected';
+      document.getElementById('connect-btn').disabled=true;
+    }
+  }
+  await loadCampaigns();
+  if (urlAddr) setTimeout(()=>openDetail(urlAddr), 500);
+});
+</script>
+</body>
+</html>
